@@ -1,9 +1,8 @@
 /* ===== Sis Store: fast render (cache-first + progressive fetch) =====
-   - Skeleton cards while loading
-   - Cache in localStorage (TTL)
-   - First page fast, then background pages with limit/offset
-   - Cloudinary images: f_auto,q_auto,w_*, srcset, lazy
-   - All existing features preserved (cart, Telegram, copy)
+   Interaction fixes:
+   - Incremental rendering (append only) so scroll never jumps while data streams in
+   - Full rebuild only when the filter (search/category/sort) changes
+   - Skeletons only for the first paint (no flashing later)
 */
 
 const CFG = window.APP_CONFIG || {};
@@ -13,12 +12,20 @@ const TG = CFG.TELEGRAM || { SELLER_USERNAME: "", MODE: "share" };
 // ---- Tunables ----
 const CACHE_KEY = "sisstore_products_v2";
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const PAGE_SIZE = 24; // first page items
-const PAGE_STEP = 60; // subsequent pages
-const RENDER_CHUNK = 32; // cards per render chunk
+const PAGE_SIZE = 24;
+const PAGE_STEP = 60;
+const RENDER_CHUNK = 32;
 
 let PRODUCTS = [];
 let state = { query: "", categoryKey: "all", sort: "popular", cart: [] };
+
+// view rendering state (for incremental append)
+let view = {
+  key: "", // current filter key
+  renderedCount: 0, // how many items are on the page for this key
+  hadSkeleton: false, // skeletons currently showing
+  appendTick: 0, // used to cancel an older append loop
+};
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => Array.from(el.querySelectorAll(sel));
@@ -36,7 +43,7 @@ const money = (n) =>
     currency: "USD",
   }).format(+n || 0);
 
-/* ---------- Image resolver (Drive/filenames/URLs) + Cloudinary optimizer ---------- */
+/* ---------- Image resolver + Cloudinary helper ---------- */
 function isAbsoluteUrl(s) {
   return /^https?:\/\//i.test(s) || /^data:/i.test(s);
 }
@@ -44,11 +51,11 @@ function driveIdFrom(s) {
   if (!s) return "";
   s = String(s);
   let m = s.match(/[?&]id=([a-zA-Z0-9_-]{20,})/);
-  if (m && m[1]) return m[1];
+  if (m) return m[1];
   m = s.match(/\/file\/d\/([a-zA-Z0-9_-]{20,})/);
-  if (m && m[1]) return m[1];
+  if (m) return m[1];
   m = s.match(/\/uc\?[^#?]*\bid=([a-zA-Z0-9_-]{20,})/);
-  if (m && m[1]) return m[1];
+  if (m) return m[1];
   if (/^[a-zA-Z0-9_-]{20,}$/.test(s)) return s;
   return "";
 }
@@ -56,8 +63,7 @@ function resolveImgRef(ref) {
   const base = (CFG.ASSET_BASE || "./assets/img/").replace(/\/+$/, "") + "/";
   const drv = CFG.DRIVE || { MODE: "direct", WEB_APP_URL: "" };
   if (!ref) return "";
-  // Cloudinary: return as-is; we'll optimize later
-  if (/^https?:\/\/res\.cloudinary\.com\//i.test(ref)) return ref;
+  if (/^https?:\/\/res\.cloudinary\.com\//i.test(ref)) return ref; // cloudinary
   if (isAbsoluteUrl(ref)) return ref;
   const id = driveIdFrom(ref);
   if (id) {
@@ -70,7 +76,6 @@ function resolveImgRef(ref) {
   }
   return base + ref.replace(/^\/+/, "");
 }
-// Insert Cloudinary transforms like /upload/f_auto,q_auto,w_640/...
 function cloudinarySized(url, w) {
   const m = url.match(
     /^(https?:\/\/res\.cloudinary\.com\/[^/]+\/image\/upload\/)(.*)$/i
@@ -78,10 +83,7 @@ function cloudinarySized(url, w) {
   if (!m) return url;
   const base = m[1],
     rest = m[2];
-  // Keep any existing transforms at the start of "rest"
-  // We insert our transforms first so they apply
-  const t = `f_auto,q_auto,w_${w}`;
-  return `${base}${t}/${rest}`;
+  return `${base}f_auto,q_auto,w_${w}/${rest}`;
 }
 
 /* ---------- Helpers ---------- */
@@ -113,6 +115,13 @@ const totalQty = () => state.cart.reduce((t, i) => t + i.qty, 0);
 const totalCost = () =>
   state.cart.reduce((t, i) => t + i.qty * (+i.price || 0), 0);
 
+// A stable key that changes only when the user modifies filters
+function currentFilterKey() {
+  return `${state.categoryKey}::${state.sort}::${state.query
+    .trim()
+    .toLowerCase()}`;
+}
+
 /* ---------- Skeletons ---------- */
 function skeletonCard() {
   return `
@@ -131,6 +140,7 @@ function showSkeleton(n = 8) {
   const grid = $("#grid");
   if (!grid) return;
   grid.innerHTML = Array.from({ length: n }).map(skeletonCard).join("");
+  view.hadSkeleton = true;
 }
 
 /* ---------- Cache ---------- */
@@ -174,14 +184,14 @@ async function fetchPage(limit, offset) {
   return { arr, total: json.total ?? arr.length };
 }
 
-let renderScheduled = false;
+let renderQueued = false;
 function scheduleRender() {
-  if (renderScheduled) return;
-  renderScheduled = true;
+  if (renderQueued) return;
+  renderQueued = true;
   requestAnimationFrame(() => {
     renderCategories();
-    renderGrid();
-    renderScheduled = false;
+    renderGridIncremental(); // 👈 incremental append
+    renderQueued = false;
   });
 }
 
@@ -195,42 +205,41 @@ async function loadProductsProgressive() {
     showSkeleton(8);
   }
 
-  // 2) Fetch first page fast
+  // 2) First page
   let offset = 0;
   try {
     const { arr, total } = await fetchPage(PAGE_SIZE, offset);
     if (!cached || !cached.length) {
-      PRODUCTS = arr.slice(); // first paint from network
-      scheduleRender();
+      PRODUCTS = arr.slice();
     } else {
-      // merge new over cache (dedupe by id)
       const seen = new Set(PRODUCTS.map((x) => x.id));
       for (const p of arr) if (!seen.has(p.id)) PRODUCTS.push(p);
-      scheduleRender();
     }
     writeCache(PRODUCTS);
+    scheduleRender();
 
-    // 3) Fetch the rest in background
+    // 3) Background pages (append only; no scroll jump)
     offset += PAGE_SIZE;
     while (offset < (total || 100000)) {
-      const step = PAGE_STEP;
-      const { arr: more } = await fetchPage(step, offset);
+      const { arr: more } = await fetchPage(PAGE_STEP, offset);
       if (!more.length) break;
       const seen = new Set(PRODUCTS.map((x) => x.id));
-      const startLen = PRODUCTS.length;
-      for (const p of more) if (!seen.has(p.id)) PRODUCTS.push(p);
-      if (PRODUCTS.length !== startLen) {
+      let added = 0;
+      for (const p of more)
+        if (!seen.has(p.id)) {
+          PRODUCTS.push(p);
+          added++;
+        }
+      if (added) {
         writeCache(PRODUCTS);
         scheduleRender();
       }
-      offset += step;
-      // Yield to UI a bit
-      await new Promise((r) => setTimeout(r, 0));
+      offset += PAGE_STEP;
+      await new Promise((r) => setTimeout(r, 0)); // yield
     }
   } catch (e) {
     console.error("Fetch failed:", e);
     if (!PRODUCTS.length) {
-      // last resort fallback sample
       PRODUCTS = [
         {
           id: "e001",
@@ -275,52 +284,38 @@ function showToast(msg) {
   }, 2300);
 }
 
-/* ---------- Render: categories & grid (chunked) ---------- */
+/* ---------- Render: categories ---------- */
 function renderCategories() {
   const wrap = $("#categories");
   if (!wrap) return;
   const curKeys = new Set(Array.from(wrap.children).map((b) => b.dataset.key));
   const all = categoriesList();
-  // Only re-render if categories changed
   const newKeys = new Set(all.map((c) => c.key));
   if (
     curKeys.size === newKeys.size &&
     [...curKeys].every((k) => newKeys.has(k))
   ) {
-    // just toggle active state
+    // just toggle active styles
     wrap.querySelectorAll("button[data-key]").forEach((btn) => {
-      btn.classList.toggle(
-        "bg-brand-600",
-        btn.dataset.key === state.categoryKey
-      );
-      btn.classList.toggle("text-white", btn.dataset.key === state.categoryKey);
-      btn.classList.toggle(
-        "border-brand-600",
-        btn.dataset.key === state.categoryKey
-      );
-      btn.classList.toggle(
-        "shadow-soft",
-        btn.dataset.key === state.categoryKey
-      );
-      btn.classList.toggle("bg-white", btn.dataset.key !== state.categoryKey);
-      btn.classList.toggle(
-        "border-ink-200",
-        btn.dataset.key !== state.categoryKey
-      );
-      btn.classList.toggle(
-        "text-ink-700",
-        btn.dataset.key !== state.categoryKey
-      );
+      const active = btn.dataset.key === state.categoryKey;
+      btn.classList.toggle("bg-brand-600", active);
+      btn.classList.toggle("text-white", active);
+      btn.classList.toggle("border-brand-600", active);
+      btn.classList.toggle("shadow-soft", active);
+      btn.classList.toggle("bg-white", !active);
+      btn.classList.toggle("border-ink-200", !active);
+      btn.classList.toggle("text-ink-700", !active);
     });
     return;
   }
-  // full rebuild if changed
+  // full rebuild if categories changed
   wrap.innerHTML = "";
   for (const { key, label } of all) {
     const btn = document.createElement("button");
+    const active = state.categoryKey === key;
     btn.className =
       "shrink-0 rounded-full border px-3 py-1.5 sm:px-3.5 sm:py-2 text-xs sm:text-sm font-medium transition " +
-      (state.categoryKey === key
+      (active
         ? "bg-brand-600 text-white border-brand-600 shadow-soft"
         : "bg-white border-ink-200 text-ink-700 hover:border-brand-400 hover:text-brand-700");
     btn.textContent = label;
@@ -329,6 +324,7 @@ function renderCategories() {
   }
 }
 
+/* ---------- Filtering ---------- */
 function filterList() {
   let list = PRODUCTS.filter((p) => {
     const q = state.query.trim().toLowerCase();
@@ -357,21 +353,14 @@ function filterList() {
   return list;
 }
 
+/* ---------- Card ---------- */
 function card(p) {
   const raw = resolveImgRef(p.img);
-  // If Cloudinary → build src/srcset with sizes
-  const src = /^https?:\/\/res\.cloudinary\.com\//i.test(raw)
-    ? cloudinarySized(raw, 480)
-    : raw;
-  const src320 = /^https?:\/\/res\.cloudinary\.com\//i.test(raw)
-    ? cloudinarySized(raw, 320)
-    : raw;
-  const src480 = /^https?:\/\/res\.cloudinary\.com\//i.test(raw)
-    ? cloudinarySized(raw, 480)
-    : raw;
-  const src640 = /^https?:\/\/res\.cloudinary\.com\//i.test(raw)
-    ? cloudinarySized(raw, 640)
-    : raw;
+  const isCloud = /^https?:\/\/res\.cloudinary\.com\//i.test(raw);
+  const src = isCloud ? cloudinarySized(raw, 480) : raw;
+  const src320 = isCloud ? cloudinarySized(raw, 320) : raw;
+  const src480 = isCloud ? cloudinarySized(raw, 480) : raw;
+  const src640 = isCloud ? cloudinarySized(raw, 640) : raw;
   const sizes = "(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw";
   return `
   <article class="group rounded-2xl bg-white border border-ink-100 shadow-sm hover:shadow-xl hover:-translate-y-0.5 transition overflow-hidden min-w-0">
@@ -440,7 +429,11 @@ function card(p) {
   </article>`;
 }
 
-function renderGrid() {
+/* ---------- Incremental grid render (no scroll jump) ---------- */
+function renderGridIncremental() {
+  const grid = $("#grid");
+  if (!grid) return;
+
   const list = filterList();
   const info = $("#resultsInfo");
   if (info) {
@@ -454,23 +447,41 @@ function renderGrid() {
         : "") +
       (state.query ? ` • “${state.query}”` : "");
   }
-  const grid = $("#grid");
-  if (!grid) return;
 
-  // Chunked render to keep UI smooth
-  grid.innerHTML = "";
-  let i = 0;
-  function chunk() {
+  const key = currentFilterKey();
+  const scroller = document.querySelector("main");
+
+  // If filter changed (user interaction), rebuild from scratch and scroll to top
+  if (key !== view.key || view.hadSkeleton) {
+    grid.innerHTML = "";
+    view.key = key;
+    view.renderedCount = 0;
+    view.hadSkeleton = false;
+    if (scroller) scroller.scrollTo({ top: 0, behavior: "instant" });
+  }
+
+  // Nothing new to append
+  if (view.renderedCount >= list.length) return;
+
+  // Cancel any previous append loop
+  const myTick = ++view.appendTick;
+
+  // Append in chunks from where we left off
+  let i = view.renderedCount;
+  const appendChunk = () => {
+    if (myTick !== view.appendTick) return; // superseded by a newer render
     const slice = list.slice(i, i + RENDER_CHUNK);
     if (!slice.length) return;
-    const html = slice.map(card).join("");
-    const frag = document.createElement("div");
-    frag.innerHTML = html;
-    while (frag.firstChild) grid.appendChild(frag.firstChild);
+    const frag = document.createDocumentFragment();
+    const div = document.createElement("div");
+    div.innerHTML = slice.map(card).join("");
+    while (div.firstChild) frag.appendChild(div.firstChild);
+    grid.appendChild(frag);
     i += RENDER_CHUNK;
-    if (i < list.length) requestAnimationFrame(chunk);
-  }
-  requestAnimationFrame(chunk);
+    view.renderedCount = i;
+    if (i < list.length) requestAnimationFrame(appendChunk);
+  };
+  requestAnimationFrame(appendChunk);
 }
 
 /* ---------- Modal ---------- */
@@ -691,16 +702,16 @@ function bindStaticEvents() {
     }
   });
 
-  // Categories
+  // Categories (invalidate filter key so we rebuild once and scroll to top)
   $on("#categories", "click", (e) => {
     const btn = e.target.closest("[data-key]");
     if (!btn) return;
     state.categoryKey = btn.dataset.key;
-    renderCategories();
-    renderGrid();
+    view.key = ""; // force rebuild on next render
+    scheduleRender();
   });
 
-  // Search & Sort
+  // Search & Sort (invalidate key and render)
   const searchInput = $("#search"),
     clearSearchBtn = $("#clearSearch");
   let timer;
@@ -713,7 +724,8 @@ function bindStaticEvents() {
           state.query = searchInput.value;
           if (clearSearchBtn)
             clearSearchBtn.classList.toggle("hidden", !state.query);
-          renderGrid();
+          view.key = ""; // force rebuild (new filter)
+          scheduleRender();
         }, 120);
       },
       { passive: true }
@@ -724,11 +736,13 @@ function bindStaticEvents() {
     state.query = "";
     const clearBtn = $("#clearSearch");
     if (clearBtn) clearBtn.classList.add("hidden");
-    renderGrid();
+    view.key = "";
+    scheduleRender();
   });
   $on("#sort", "change", (e) => {
     state.sort = e.target.value;
-    renderGrid();
+    view.key = "";
+    scheduleRender();
   });
 
   // Modal close
@@ -750,8 +764,6 @@ function bindStaticEvents() {
 /* ---------- Init ---------- */
 document.addEventListener("DOMContentLoaded", async () => {
   bindStaticEvents();
-  // Show skeleton immediately
   showSkeleton(8);
-  // Start progressive load (uses cache if present)
-  loadProductsProgressive();
+  loadProductsProgressive(); // cache-first + background append
 });
