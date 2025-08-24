@@ -8,7 +8,7 @@ window.APP_CONFIG = {
   // - SELLER_USERNAME: Telegram username without "@"
   // - MODE: "dm" tries to open a DM to the seller; fallback is the share picker.
   TELEGRAM: {
-    SELLER_USERNAME: "veasnasruoy",
+    SELLER_USERNAME: "charynhor",
     MODE: "dm", // "dm" or "share"
   },
 };
