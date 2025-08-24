@@ -2,12 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+
     <title>Sis Store • E-Menu</title>
 
     <!-- Fonts + Tailwind CDN -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <!-- Speed: preconnect to data & images -->
+    <link rel="preconnect" href="https://script.google.com" />
+    <link rel="dns-prefetch" href="https://script.google.com" />
+    <link rel="preconnect" href="https://res.cloudinary.com" />
+    <link rel="dns-prefetch" href="https://res.cloudinary.com" />
+
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
       rel="stylesheet"
@@ -307,70 +317,85 @@
       </div>
     </aside>
 
-    <!-- Product Modal -->
-    <div id="modal" class="fixed inset-0 z-50 hidden">
+    <!-- Product Modal (centered, compact rows) -->
+    <div
+      id="modal"
+      class="fixed inset-0 z-50 hidden grid place-items-center p-3"
+    >
+      <!-- backdrop -->
       <div class="absolute inset-0 bg-black/50" data-modal-close></div>
+
+      <!-- panel -->
       <div
-        class="relative mx-auto mt-16 w-[95%] max-w-3xl rounded-2xl bg-white shadow-2xl"
+        class="relative w-[95%] max-w-3xl rounded-2xl bg-white shadow-2xl max-h-[88dvh] flex flex-col overflow-hidden"
       >
-        <div class="flex flex-col md:flex-row">
-          <div
-            class="md:w-1/2 p-6 border-b md:border-b-0 md:border-r border-ink-100"
-          >
+        <!-- scrollable content -->
+        <div class="flex-1 overflow-y-auto overscroll-contain">
+          <div class="flex flex-col md:flex-row">
+            <!-- image -->
             <div
-              class="aspect-[4/3] w-full rounded-xl bg-gradient-to-br from-ink-100 via-white to-brand-50 grid place-items-center overflow-hidden"
+              class="md:w-1/2 p-4 md:p-6 pb-0 md:pb-6 border-b md:border-b-0 md:border-r border-ink-100"
             >
-              <img
-                id="modalImg"
-                src=""
-                alt=""
-                class="h-full w-full object-cover"
-              />
+              <div
+                class="aspect-[4/3] w-full rounded-xl bg-gradient-to-br from-ink-100 via-white to-brand-50 overflow-hidden"
+              >
+                <img
+                  id="modalImg"
+                  src=""
+                  alt=""
+                  class="h-full w-full object-cover"
+                />
+              </div>
             </div>
-          </div>
-          <div class="md:w-1/2 p-6">
-            <div class="flex items-start justify-between gap-4">
-              <div>
+
+            <!-- details -->
+            <div class="md:w-1/2 p-4 md:p-6">
+              <!-- Row 1: Category + Code (same line) -->
+              <div class="flex flex-wrap items-center gap-2">
                 <span
                   id="modalCategory"
-                  class="inline-flex items-center rounded-full bg-brand-50 text-brand-700 px-2.5 py-1 text-xs font-semibold ring-1 ring-brand-200"
-                  >Category</span
+                  class="inline-flex items-center rounded-full bg-brand-50 text-brand-700 px-2.5 py-1 text-[11px] md:text-xs font-semibold ring-1 ring-brand-200"
                 >
-                <h3 id="modalName" class="mt-2 text-xl font-semibold"></h3>
-                <p id="modalCode" class="text-sm text-ink-500"></p>
+                  Category
+                </span>
+                <span
+                  class="inline-flex items-center rounded-full bg-ink-900/90 text-white px-2.5 py-1 text-[11px] md:text-xs font-semibold tracking-wide"
+                >
+                  <span id="modalCode"></span>
+                </span>
               </div>
-              <button
-                class="rounded-lg p-2 hover:bg-ink-100"
-                data-modal-close
-                aria-label="Close"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M6 6l12 12M6 18L18 6"
-                    stroke="#0f172a"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </button>
+
+              <!-- Title -->
+              <h3
+                id="modalName"
+                class="mt-2 text-base md:text-xl font-semibold leading-snug"
+              ></h3>
+
+              <!-- Description -->
+              <p
+                id="modalDesc"
+                class="mt-2 text-[13px] md:text-[15px] leading-relaxed text-ink-600"
+              ></p>
             </div>
-            <p
-              id="modalDesc"
-              class="mt-3 text-[15px] leading-relaxed text-ink-600"
-            ></p>
+          </div>
+        </div>
+
+        <!-- Row 2: Price + buttons (same line) -->
+        <div class="p-3 md:p-4 border-t border-ink-200 bg-white">
+          <div class="flex items-center justify-between gap-3">
             <div
               id="modalPrice"
-              class="mt-4 text-2xl font-semibold text-brand-800"
+              class="text-lg md:text-2xl font-semibold text-brand-800"
             ></div>
-            <div class="mt-6 flex items-center gap-3">
+            <div class="flex items-center gap-2">
               <button
                 id="modalAddQuote"
-                class="rounded-xl bg-brand-600 text-white font-medium px-4 py-2 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300"
+                class="rounded-xl bg-brand-600 text-white font-medium px-4 py-2 md:px-5 md:py-2.5 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300"
               >
                 Add to cart
               </button>
               <button
-                class="rounded-xl border border-ink-200 bg-white px-4 py-2 font-medium hover:shadow-sm"
+                class="rounded-xl border border-ink-200 bg-white px-4 py-2 md:px-5 md:py-2.5 font-medium hover:shadow-sm"
                 data-modal-close
               >
                 Close
