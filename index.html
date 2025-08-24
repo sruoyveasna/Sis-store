@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Sis Store • E-Menu</title>
 
-    <!-- Fonts + Tailwind CDN (simple, no build step) -->
+    <!-- Fonts + Tailwind CDN -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -14,7 +14,7 @@
     />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      /* Sis Store watercolor-blue palette */
+      /* Slightly darker blue theme */
       tailwind.config = {
         theme: {
           extend: {
@@ -30,16 +30,16 @@
             },
             colors: {
               brand: {
-                50: "#F4F8FC",
-                100: "#E9F0F7",
-                200: "#D6E2F0",
-                300: "#BDD0E6",
-                400: "#9FBAD8",
-                500: "#749AB9",
-                600: "#5F86A9",
-                700: "#4A6F93",
-                800: "#3A5A79",
-                900: "#2F4863",
+                50: "#EFF4F9",
+                100: "#DEE8F3",
+                200: "#C2D4E8",
+                300: "#A3BFDB",
+                400: "#89A7CA",
+                500: "#5F86B1",
+                600: "#4E729E",
+                700: "#415E83",
+                800: "#354C69",
+                900: "#2A3D54",
               },
               ink: {
                 50: "#f8fafc",
@@ -55,7 +55,7 @@
               },
             },
             boxShadow: {
-              soft: "0 10px 30px rgba(74,111,147,.12)",
+              soft: "0 10px 30px rgba(47,61,84,0.14)",
               inner: "inset 0 1px 0 rgba(255,255,255,.6)",
             },
           },
@@ -63,25 +63,32 @@
       };
     </script>
 
-    <!-- Your light custom CSS -->
     <link rel="stylesheet" href="assets/css/styles.css" />
   </head>
-  <body class="bg-ink-50 text-ink-800">
+
+  <!-- Lock page scroll; only <main> scrolls -->
+  <body
+    class="min-h-[100dvh] h-[100dvh] overflow-hidden bg-ink-50 text-ink-800 flex flex-col"
+  >
+    <!-- Global background so header + content feel unified -->
+    <div
+      class="fixed inset-0 -z-10 bg-gradient-to-br from-brand-50 via-white to-brand-100"
+    ></div>
+
     <!-- Toast -->
     <div id="toast" class="fixed top-4 right-4 z-[100] hidden"></div>
 
-    <!-- Header -->
-    <header class="relative overflow-hidden">
+    <!-- Sticky Header (condensed on mobile) -->
+    <header class="sticky top-0 z-40">
       <div
-        class="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-brand-100"
-      ></div>
-      <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="flex items-center justify-between gap-4">
-          <div class="flex items-center gap-3 select-none">
+        class="relative max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-6 bg-white/40 backdrop-blur supports-[backdrop-filter]:bg-white/40 rounded-b-xl"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center gap-2 sm:gap-3 select-none">
             <div
-              class="h-10 w-10 rounded-2xl bg-brand-600 text-white grid place-items-center shadow-soft"
+              class="h-8 w-8 sm:h-10 sm:w-10 rounded-2xl bg-brand-600 text-white grid place-items-center shadow-soft"
             >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                 <path
                   d="M11 4a1 1 0 0 1 2 0v3h3a1 1 0 1 1 0 2h-3v3a1 1 0 1 1-2 0V9H8A1 1 0 1 1 8 7h3V4Z"
                   fill="currentColor"
@@ -89,10 +96,10 @@
               </svg>
             </div>
             <div>
-              <h1 class="text-xl sm:text-2xl font-semibold tracking-tight">
+              <h1 class="text-base sm:text-2xl font-semibold tracking-tight">
                 Sis Store <span class="text-brand-700">E-Menu</span>
               </h1>
-              <p class="text-sm text-ink-500">
+              <p class="hidden sm:block text-sm text-ink-500">
                 Accessories — fast to browse, easy to pick.
               </p>
             </div>
@@ -100,7 +107,7 @@
 
           <button
             id="quoteBtn"
-            class="relative inline-flex items-center gap-2 rounded-xl border border-ink-200 bg-white px-4 py-2 text-sm font-medium shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-brand-500"
+            class="relative inline-flex items-center gap-1 sm:gap-2 rounded-xl border border-ink-200 bg-white px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-brand-500"
           >
             <svg
               width="18"
@@ -116,7 +123,7 @@
                 stroke-linecap="round"
               />
             </svg>
-            <span>Cart</span>
+            <span class="hidden sm:inline">Cart</span>
             <span
               id="quoteCount"
               class="ml-1 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white"
@@ -125,22 +132,24 @@
           </button>
         </div>
 
-        <!-- Search + Sort -->
-        <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- Search + Sort (compact on mobile) -->
+        <div
+          class="mt-3 sm:mt-6 grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-3"
+        >
           <div class="md:col-span-2">
             <label class="relative block">
               <input
                 id="search"
                 type="search"
-                placeholder="Search products by name or code…"
-                class="w-full rounded-2xl border border-ink-200 bg-white/90 px-12 py-3 text-[15px] shadow-sm placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                placeholder="Search by name or code…"
+                class="h-10 sm:h-auto w-full rounded-2xl border border-ink-200 bg-white/90 px-11 sm:px-12 py-2.5 sm:py-3 text-[13px] sm:text-[15px] shadow-sm placeholder:text-ink-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
               />
               <svg
-                width="20"
-                height="20"
+                width="18"
+                height="18"
                 viewBox="0 0 24 24"
                 fill="none"
-                class="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400"
+                class="absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400"
               >
                 <path
                   d="M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-4.35-4.35"
@@ -151,10 +160,10 @@
               </svg>
               <button
                 id="clearSearch"
-                class="hidden absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 text-ink-400 hover:text-ink-600"
+                class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1.5 sm:p-2 text-ink-400 hover:text-ink-600"
                 aria-label="Clear search"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
                   <path
                     d="M6 6l12 12M6 18L18 6"
                     stroke="currentColor"
@@ -169,7 +178,7 @@
             <label class="relative block">
               <select
                 id="sort"
-                class="w-full appearance-none rounded-2xl border border-ink-200 bg-white/90 px-4 py-3 text-[15px] shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
+                class="h-10 sm:h-auto w-full appearance-none rounded-2xl border border-ink-200 bg-white/90 px-3 sm:px-4 py-2.5 sm:py-3 text-[13px] sm:text-[15px] shadow-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200"
               >
                 <option value="popular">Sort: Featured</option>
                 <option value="price-asc">Price: Low to High</option>
@@ -178,11 +187,11 @@
                 <option value="name-desc">Name: Z → A</option>
               </select>
               <svg
-                width="18"
-                height="18"
+                width="16"
+                height="16"
                 viewBox="0 0 24 24"
                 fill="none"
-                class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-ink-400"
+                class="pointer-events-none absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-ink-400"
               >
                 <path
                   d="M6 9l6 6 6-6"
@@ -198,30 +207,37 @@
         <!-- Categories -->
         <div
           id="categories"
-          class="mt-5 flex gap-2 overflow-x-auto hide-scrollbar"
+          class="mt-3 sm:mt-5 flex gap-2 overflow-x-auto hide-scrollbar"
         ></div>
       </div>
     </header>
 
-    <!-- Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div id="resultsInfo" class="mb-4 text-sm text-ink-500"></div>
-      <div
-        id="grid"
-        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-      ></div>
+    <!-- Main (only this scrolls; scrollbar hidden) -->
+    <main class="flex-1 overflow-y-auto hide-scrollbar">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-6 sm:py-8">
+        <div
+          id="resultsInfo"
+          class="mb-3 sm:mb-4 text-xs sm:text-sm text-ink-500"
+        ></div>
+        <!-- 2 columns on mobile -->
+        <div
+          id="grid"
+          class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5"
+        ></div>
+      </div>
     </main>
 
     <!-- Cart Drawer -->
     <aside
       id="drawer"
-      class="fixed right-0 top-0 h-full w-[380px] max-w-[90vw] translate-x-full transition-transform duration-300 z-50"
+      class="fixed right-0 top-0 h-[100dvh] w-[380px] max-w-[90vw] translate-x-full transition-transform duration-300 z-50 overscroll-contain"
     >
       <div
-        class="h-full bg-white shadow-2xl border-l border-ink-200 flex flex-col"
+        class="h-full bg-white shadow-2xl border-l border-ink-200 flex flex-col min-h-0"
       >
+        <!-- Header -->
         <div
-          class="flex items-center justify-between px-5 py-4 border-b border-ink-200 bg-ink-50/60"
+          class="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b border-ink-200 bg-ink-50/80 backdrop-blur supports-[backdrop-filter]:bg-ink-50/60"
         >
           <h3 class="font-semibold">Your Cart</h3>
           <button
@@ -239,6 +255,8 @@
             </svg>
           </button>
         </div>
+
+        <!-- Empty -->
         <div
           id="quoteEmpty"
           class="flex-1 grid place-items-center text-center p-8 text-ink-500"
@@ -260,15 +278,24 @@
             <p class="text-sm">Add products to send to Telegram later.</p>
           </div>
         </div>
-        <div id="quoteItems" class="flex-1 overflow-y-auto hidden">
+
+        <!-- Items -->
+        <div
+          id="quoteItems"
+          class="flex-1 overflow-y-auto hidden overscroll-contain min-h-0"
+        >
           <ul class="divide-y divide-ink-100" id="quoteList"></ul>
         </div>
-        <div class="p-4 border-t border-ink-200 space-y-2">
+
+        <!-- Footer -->
+        <div
+          class="sticky bottom-0 z-10 p-4 border-t border-ink-200 bg-white space-y-3 pb-[calc(env(safe-area-inset-bottom)+16px)]"
+        >
           <button
-            id="printQuote"
+            id="copyCart"
             class="w-full rounded-xl bg-brand-600 text-white font-medium py-3 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-300"
           >
-            Print / Save as PDF
+            Copy cart to clipboard
           </button>
           <button
             id="shareTelegram"
@@ -332,8 +359,8 @@
               class="mt-3 text-[15px] leading-relaxed text-ink-600"
             ></p>
             <div
-              class="mt-4 text-2xl font-semibold text-brand-800"
               id="modalPrice"
+              class="mt-4 text-2xl font-semibold text-brand-800"
             ></div>
             <div class="mt-6 flex items-center gap-3">
               <button
@@ -353,26 +380,6 @@
         </div>
       </div>
     </div>
-
-    <!-- Print Template -->
-    <template id="printTpl">
-      <div class="p-6">
-        <h2 class="text-lg font-semibold">Cart</h2>
-        <p class="text-sm text-ink-500">Generated from Sis Store E-Menu</p>
-        <table class="mt-4 w-full text-sm border-collapse">
-          <thead>
-            <tr class="bg-ink-100">
-              <th class="text-left p-2 border">#</th>
-              <th class="text-left p-2 border">Product</th>
-              <th class="text-left p-2 border">Code</th>
-              <th class="text-left p-2 border">Category</th>
-              <th class="text-right p-2 border">Price</th>
-            </tr>
-          </thead>
-          <tbody id="printRows"></tbody>
-        </table>
-      </div>
-    </template>
 
     <!-- Config first, then app -->
     <script src="assets/js/config.js"></script>

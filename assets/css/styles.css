@@ -1,8 +1,13 @@
-/* hide horizontal scrollbar in category strip */
+/* Hide scrollbars where applied */
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
 .hide-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* Smooth drawer */
+#drawer {
+  will-change: transform;
 }
